@@ -1,27 +1,56 @@
 #include <tins/tins.h>
-#include <tins/tcp_ip/stream_follower.h>
 #include <iostream>
 #include <arpa/inet.h>
+#include <algorithm>
 using namespace Tins;
 using namespace std;
-using Tins::TCPIP::Stream;
-using Tins::TCPIP::StreamFollower;
-struct foo {
-    void bar() {
+struct pk_set {
+    void sf_set() {
         SnifferConfiguration config;
         config.set_promisc_mode(true);
         config.set_filter("port 80");
         config.set_promisc_mode(true);
         Sniffer sniffer("eth0", config);
-        sniffer.sniff_loop(make_sniffer_handler(this, &foo::handle));
+        sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
 
     }
-    void send(EthernetII ethernet, IP ip, TCP tcp, RawPDU raw)
+    void debug(EthernetII ethernet, IP ip, TCP tcp)
     {
+        cout<<"ethernet<src /dst> :"<<ethernet.src_addr()<<" / "<<ethernet.dst_addr()<<endl;
+        cout<<"IP src<src /dst> :"<<ip.src_addr()<<" / "<<ip.dst_addr()<<endl;
+        cout<<"Tcp port<src /dst> :"<<tcp.sport()<<" / "<<tcp.dport()<<endl;
+        cout<<"tcp.seq num : "<<hex<<tcp.seq()<<endl;
+        cout<<"tpc.ack num : "<<hex<<tcp.ack_seq()<<endl;
 
+    }
+
+    void send(EthernetII ethernet, IP ip, TCP tcp,RawPDU::payload_type payload)
+    {
+        uint32_t new_seq, new_ack;
+        EthernetII new_ethernet = ethernet;
+        new_ethernet.src_addr(ethernet.dst_addr());
+        new_ethernet.dst_addr(ethernet.src_addr());
+        IP new_ip = ip;
+        //swap
+        new_ip.src_addr(ip.dst_addr());
+        new_ip.dst_addr(ip.src_addr());
+        TCP new_tcp = tcp;
+        //swap
+        new_tcp.sport(tcp.dport());
+        new_tcp.dport(tcp.sport());
+        new_seq = new_tcp.ack_seq(); // caclulator
+        new_ack = new_tcp.seq() + payload.size(); //caclulator
+        new_tcp.seq(new_seq);
+        new_tcp.ack_seq(new_ack);
+        cout<<"header size : "<<new_tcp.header_size()<<endl;
+        //debug
+        debug(new_ethernet,new_ip,new_tcp);
+        /*
         PacketSender sender;
-        EthernetII pkt = EthernetII(ethernet.src_addr(),ethernet.dst_addr()) / IP(ip.src_addr(),ip.dst_addr()) / TCP(tcp.sport(),tcp.dport()) / RawPDU(raw);
-        sender.send(pkt, "eth0");
+        EthernetII attack = new_ethernet / new_ip / new_tcp;
+        sender.send(attack, "eth0");
+        */
+
     }
 
     bool handle(PDU& pdu) {
@@ -32,20 +61,10 @@ struct foo {
         if(tcp.dport() == 80)
         {
             const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
-            const RawPDU::payload_type& payload = raw.payload();
-            uint32_t new_seq = 0;
-            new_seq = tcp.seq() + tcp.header_size(); //여기서 23이라는 16진수가 더해져야한다.
+            const RawPDU::payload_type& payload = raw.payload();\
+            send(ethernet,ip,tcp,payload);
 
-            //send(ethernet,ip,tcp,raw);
-            cout<<"ethernet :"<<ethernet.src_addr()<<" / "<<ethernet.dst_addr()<<endl;
-            cout<<"IP src :"<<ip.src_addr()<<" / "<<ip.dst_addr()<<endl;
-            cout<<"Tcp port :"<<tcp.sport()<<" / "<<tcp.dport()<<endl;
-            cout<<"tcp.seq num : "<<hex<<tcp.seq()<<endl;
-            cout<<"tpc.ack num : "<<hex<<tcp.ack_seq()<<endl;
-            cout<<"header size :" <<hex<<tcp.header_size()<<endl;
-            cout<<"flag : "<<hex<<tcp.flags()<<endl;
-            cout<<"new_seq num :"<<hex<<new_seq<<endl;
-            cout<<payload.data()<<endl;
+            //debug(ethernet,ip,tcp);
 
 
 
@@ -59,8 +78,8 @@ struct foo {
 
 int main() {
 
-    foo f;
-    f.bar();
+    pk_set ps;
+    ps.sf_set();
 
 
 }
