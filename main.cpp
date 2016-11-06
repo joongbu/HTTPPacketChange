@@ -7,7 +7,7 @@
 #include <tins/network_interface.h>
 using namespace Tins;
 using namespace std;
-string mac = "24:05:0f:30:ad:6b";
+string mac;
 char *sf_dev;
 char *sd_dev;
 char *path;
@@ -130,7 +130,9 @@ bool check(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-    if(check(argc,argv) == false) exit(1);
+    cout<<"input wireless adapter mac address : ";
+    cin >> mac;
+    if(check(argc,argv) == false || mac.empty()) exit(1);
     pk_set ps;
     ps.image_f();
     ps.sf_set();
