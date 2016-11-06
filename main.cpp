@@ -5,6 +5,7 @@
 #include <fstream>
 #include <regex>
 #include <tins/network_interface.h>
+#include <thread>
 using namespace Tins;
 using namespace std;
 string mac = "24:05:0f:30:ad:6b";
@@ -20,16 +21,18 @@ struct pk_set
     PacketSender sender;
     uint8_t *image;
     u_int32_t len;
-    int count = 0;
+    thread th1;
     bool web_image(char *_data)
     {
-        std::string data(_data);
-        std::regex pattern(".jpg");
-        std::smatch result;
-        if(std::regex_search(data, result, pattern))
-            return true;
-        else
-            return false;
+        return (bool)strstr(_data,".jpg");
+
+//        std::string data(_data);
+//        std::regex pattern(".jpg");
+//        std::smatch result;
+//        if(std::regex_search(data, result, pattern))
+//            return true;
+//        else
+//            return false;
     }
     void image_f()
     {
@@ -97,7 +100,7 @@ struct pk_set
         const TCP &tcp = pdu.rfind_pdu<TCP>();
         const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
         const RawPDU::payload_type& payload = raw.payload();
-        if(tcp.flags() == 0x18 && tcp.dport() == 0x50 && web_image((char *)payload.data()) == true)
+        if(tcp.flags() == 0x18 && tcp.dport() == 0x50 && web_image((char *)payload.data()))
         {
             pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
@@ -134,4 +137,3 @@ int main(int argc, char *argv[])
     ps.image_f();
     ps.sf_set();
 }
-
