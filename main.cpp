@@ -5,7 +5,6 @@
 #include <fstream>
 #include <regex>
 #include <tins/network_interface.h>
-#include <thread>
 using namespace Tins;
 using namespace std;
 string mac = "24:05:0f:30:ad:6b";
@@ -21,7 +20,6 @@ struct pk_set
     PacketSender sender;
     uint8_t *image;
     u_int32_t len;
-    thread th1;
     bool web_image(char *_data)
     {
         return (bool)strstr(_data,".jpg");
