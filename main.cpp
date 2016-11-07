@@ -53,7 +53,8 @@ struct pk_set
         config.set_promisc_mode(true);
         config.set_filter("port 80");
         config.set_promisc_mode(true);
-        config.set_timeout(0.001);
+        //config.set_timeout(1);
+        config.set_immediate_mode(true);
         Sniffer sniffer(sf_dev, config);
         sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
     }
