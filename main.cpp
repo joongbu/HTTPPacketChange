@@ -6,14 +6,15 @@
 #include <tins/network_interface.h>
 using namespace Tins;
 using namespace std;
-string mac;
+typedef HWAddress<6> address;
 char *sf_dev;
 char *sd_dev;
 char *path;
-
+address mac;
 struct pk_set
 {
-    typedef HWAddress<6> address;
+
+
     EthernetII new_ethernet;
     IP new_ip;
     TCP new_tcp;
@@ -24,14 +25,13 @@ struct pk_set
     bool web_image(char *_data)
     {
         return (bool)strstr(_data,".jpg");
-
     }
     void image_f()
     {
         FILE *fp = fopen(path,"rb");
         fseek(fp,0,SEEK_END);//moving list array
         len = ftell(fp);
-        cout<<"file size : "<<len<<"\n";
+        cout<<"JPEG file size : "<<len<<"\n";
         fseek(fp,0,SEEK_SET);//moving start array
         image = (uint8_t *)malloc(len);
         if(fread(image,len,1,fp))
@@ -64,8 +64,7 @@ struct pk_set
     }
     void pk_swap(EthernetII ethernet, IP ip, TCP tcp)
     {
-        //address(mac)
-        new_ethernet.src_addr(address(mac));
+        new_ethernet.src_addr(mac);
         new_ethernet.dst_addr(ethernet.src_addr());
         new_ip.src_addr(ip.dst_addr());
         new_ip.dst_addr(ip.src_addr());
@@ -93,7 +92,6 @@ struct pk_set
         const TCP &tcp = pdu.rfind_pdu<TCP>();
         const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
         const RawPDU::payload_type& payload = raw.payload();
-
         if(tcp.flags() == 0x18 && tcp.dport() == 0x50 && web_image((char *)payload.data()))
         {
             pk_swap(ethernet,ip,tcp);
@@ -124,9 +122,15 @@ bool check(int argc, char *argv[])
 }
 int main(int argc, char *argv[])
 {
-    cout<<"input wireless adapter mac address : ";
-    cin >> mac;
-    if(check(argc,argv) == false || mac.empty()) exit(1);
+    if(check(argc,argv) == false) exit(1);
+    //get own macaddress
+    NetworkInterface iface(sd_dev);
+    NetworkInterface::Info info;
+    info = iface.addresses();
+    mac = info.hw_addr;
+    cout<<"send dev :"<<sd_dev<<"\n";
+    cout<<"mac address :"<<mac<<"\n";
+    //wireless sniffing
     pk_set ps;
     ps.image_f();
     ps.sf_set();
