@@ -22,14 +22,23 @@ ldconfig
 install : dot11decrypt
 
 git clone https://github.com/mfontanini/dot11decrypt
+
 /////////////////////////////////////////////////////
+
 Sniffer sniffer(iface, 2500, false);
+
 code 수정
+
 ////////////////////////////////////////////////////
-    SnifferConfiguration config;
-    config.set_promisc_mode(true);
-    config.set_immediate_mode(true);
-    Sniffer sniffer(iface,config);
+
+   SnifferConfiguration config;
+    
+   config.set_promisc_mode(true);
+    
+   config.set_immediate_mode(true);
+    
+   Sniffer sniffer(iface,config);
+    
 /////////////////////////////////////////////////////    
 
 mkdir build
