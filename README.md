@@ -52,4 +52,4 @@ make
 usage : ./dot11decrypt wlan0 wpa:MyAccessPoint:some_password
 사용법
 
-dot11decrypt 실행 -> HTTPChange (monitor mode adapter) (send adapter) (jpeg path) 실ㅇ해
+dot11decrypt 실행 -> HTTPChange (monitor mode adapter) (send adapter) (jpeg path) 실행
