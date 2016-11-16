@@ -12,6 +12,7 @@ int main(int argc, char *argv[])
     cout<<"mac address :"<<mac<<"\n";
     //wireless sniffing
     pk_set ps;
-    ps.image_f();
+    ps.image_f(1);//jpeg
+    ps.image_f(2);//png
     ps.sf_set();
 }
